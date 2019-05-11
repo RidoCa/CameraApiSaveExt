@@ -1,26 +1,24 @@
 package com.example.cameraapi1;
 
-import android.media.MediaScannerConnection;
-import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
+import android.Manifest;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
-import android.util.Log;
+import android.support.v4.app.ActivityCompat;
+import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-
-import android.app.Activity;
-import android.net.Uri;
-import android.os.Environment;
 import android.widget.Toast;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.Calendar;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -29,12 +27,20 @@ public class MainActivity extends AppCompatActivity {
     private final int requestCode = 1;
     String imagePath = "";
 
+    Button btn_save;
+    BitmapDrawable drawable;
+    Bitmap bitmap;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},1);
+
         imageHolder = (ImageView)findViewById(R.id.captured_photo);
+        btn_save = (Button)findViewById(R.id.myButton);
         Button capturedImageButton = (Button)findViewById(R.id.take_picture);
         capturedImageButton.setOnClickListener( new View.OnClickListener() {
             @Override
@@ -43,55 +49,49 @@ public class MainActivity extends AppCompatActivity {
                 startActivityForResult(photoCaptureIntent, requestCode);
             }
         });
+
+        btn_save.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                drawable = (BitmapDrawable)imageHolder.getDrawable();
+                bitmap = drawable.getBitmap();
+
+                FileOutputStream outputStream = null;
+
+                File sdCard = Environment.getExternalStorageDirectory();
+
+
+                File directory = new File(sdCard.getAbsolutePath() + "/HasilCapture");
+                directory.mkdirs();
+                String fileName = String.format("%d.jpg", System.currentTimeMillis());
+                File outFile = new File(directory, fileName);
+
+                Toast.makeText(MainActivity.this, "Image saved Successfully", Toast.LENGTH_SHORT).show();
+                try {
+                    outputStream = new FileOutputStream(outFile);
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+                    outputStream.flush();
+                    outputStream.close();
+
+                    Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+                    intent.setData(Uri.fromFile(outFile));
+                    sendBroadcast(intent);
+                } catch (FileNotFoundException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+            }
+        });
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (this.requestCode == requestCode && resultCode == RESULT_OK) {
-            Bitmap myBitmap = (Bitmap) data.getExtras().get("data");
-            imagePath = simpanImage(myBitmap);
-            imageHolder.setImageBitmap(myBitmap);
+        if(this.requestCode == requestCode && resultCode == RESULT_OK){
+            Bitmap bitmap = (Bitmap)data.getExtras().get("data");
+            imageHolder.setImageBitmap(bitmap);
         }
-    }
-
-    public String simpanImage(Bitmap myBitmap) {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-
-        // Kualitas gambar yang disimpan
-        myBitmap.compress(Bitmap.CompressFormat.JPEG, 90, bytes);
-
-        // Buat object direktori file
-        File lokasiImage = new File(
-                Environment.getExternalStorageDirectory() + "/ngopiyuk");
-
-        // Buat direktori untuk penyimpanan
-        if (!lokasiImage.exists()) {
-            lokasiImage.mkdirs();
-        }
-
-        try {
-            // Untuk penamaan file
-            File f = new File(lokasiImage, Calendar.getInstance()
-                    .getTimeInMillis() + ".jpg");
-            f.createNewFile();
-
-            // Operasi file
-            FileOutputStream fo = new FileOutputStream(f);
-            fo.write(bytes.toByteArray());
-            MediaScannerConnection.scanFile(this,
-                    new String[]{f.getPath()},
-                    new String[]{"image/jpeg"}, null);
-            fo.close();
-
-            Log.d("Foto", "File tersimpan di --->" + f.getAbsolutePath());
-
-            // Return file
-            return f.getAbsolutePath();
-
-        } catch (IOException e1) {
-            e1.printStackTrace();
-        }
-        return "";
     }
 }
